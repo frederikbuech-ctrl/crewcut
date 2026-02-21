@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CREW CUT Analytics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        /* HEADER */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 25px;
+            background: rgba(0,153,204,0.1);
+            border-radius: 20px;
+            border: 2px solid #0099cc;
+        }
+        .logo-text { font-size: 42px; font-weight: 900; letter-spacing: 2px; }
+        .crew { color: #0099cc; }
+        .subtitle { color: #888; font-size: 16px; margin-top: 8px; }
+
+        /* MAIN MENU */
+        .main-menu {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .menu-btn {
+            background: linear-gradient(135deg, #2d2d2d, #1a1a1a);
+            border: 2px solid #444;
+            border-radius: 18px;
+            padding: 28px 16px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+            color: white;
+        }
+        .menu-btn:hover { border-color: #0099cc; box-shadow: 0 8px 25px rgba(0,153,204,0.25); transform: translateY(-2px); }
+        .menu-btn.active { border-color: #0099cc; background: linear-gradient(135deg, #0099cc, #0077aa); box-shadow: 0 8px 25px rgba(0,153,204,0.4); }
+        .menu-btn .icon { font-size: 32px; margin-bottom: 10px; }
+        .menu-btn .label { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+        .menu-btn .desc { font-size: 12px; color: #aaa; margin-top: 6px; line-height: 1.4; }
+        .menu-btn.active .desc { color: rgba(255,255,255,0.8); }
+
+        /* SCREENS */
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        /* MONTH SELECTOR */
+        .month-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            background: #2d2d2d;
+            border-radius: 14px;
+            padding: 16px 20px;
+            border: 1px solid #444;
+            flex-wrap: wrap;
+        }
+        .month-bar label { color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+        .month-select {
+            background: #1a1a1a;
+            color: white;
+            border: 2px solid #0099cc;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            flex: 1;
+            min-width: 160px;
+        }
+        .month-select:focus { outline: none; }
+
+        /* UPLOAD */
+        .upload-section {
+            background: #2d2d2d;
+            padding: 35px;
+            border-radius: 20px;
+            margin-bottom: 24px;
+            border: 2px dashed #444;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-section:hover { border-color: #0099cc; background: #333; }
+        .upload-section.dragover { border-color: #00ff88; background: #1a3a2d; }
+        .upload-icon { font-size: 44px; margin-bottom: 14px; }
+        .upload-section h2 { font-size: 18px; font-weight: 700; }
+        .upload-section p { color: #888; margin-top: 8px; font-size: 14px; }
+
+        /* INFO BOX */
+        .info-box {
+            background: rgba(0,153,204,0.07);
+            border: 1px solid #0099cc;
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #ccc;
+            line-height: 1.9;
+        }
+        .info-box h3 { color: #0099cc; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+        .info-box ol { padding-left: 18px; }
+        .info-box .note { margin-top: 12px; padding-top: 12px; border-top: 1px solid #333; color: #777; font-size: 13px; }
+
+        /* LOADING */
+        .loading { text-align: center; padding: 40px; font-size: 16px; color: #888; }
+        .spinner {
+            border: 4px solid #444; border-top: 4px solid #0099cc;
+            border-radius: 50%; width: 48px; height: 48px;
+            animation: spin 1s linear infinite; margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ERROR BOX */
+        .error-box {
+            background: rgba(255,0,51,0.12);
+            border: 2px solid #ff0033;
+            border-radius: 14px;
+            padding: 24px;
+        }
+        .error-box .title { font-size: 17px; font-weight: 700; margin-bottom: 12px; color: #ff0033; }
+        .error-box ul { padding-left: 18px; color: #ccc; line-height: 2; margin-bottom: 16px; }
+        .debug-block {
+            background: #1a1a1a; border-radius: 10px; padding: 14px;
+            font-size: 13px; line-height: 2.2; color: #ccc;
+        }
+        .debug-block .debug-title { color: #0099cc; font-weight: 700; margin-bottom: 6px; }
+        .retry-btn {
+            margin-top: 18px; padding: 11px 28px;
+            background: #0099cc; color: white; border: none;
+            border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+        }
+        .retry-btn:hover { background: #00bbff; }
+
+        /* STATS GRID */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #2d2d2d, #1a1a1a);
+            padding: 20px;
+            border-radius: 14px;
+            border: 2px solid #444;
+            transition: all 0.2s ease;
+        }
+        .stat-card:hover { border-color: #0099cc; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,153,204,0.2); }
+        .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .stat-value { font-size: 26px; font-weight: 900; color: #0099cc; }
+        .stat-sub { font-size: 12px; color: #666; margin-top: 4px; }
+
+        /* SECTION CARD */
+        .section-card {
+            background: #2d2d2d;
+            padding: 26px;
+            border-radius: 18px;
+            margin-bottom: 22px;
+            border: 2px solid #444;
+        }
+        .section-card h2 {
+            color: #0099cc; font-size: 19px; font-weight: 700;
+            margin-bottom: 18px; padding-bottom: 12px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        /* DISCREPANCY ITEMS */
+        .disc-item {
+            padding: 12px 16px; border-radius: 10px; margin-bottom: 8px;
+            border-left: 4px solid #ff0033; background: rgba(255,0,51,0.08);
+            font-size: 14px;
+        }
+        .disc-item.ok { border-left-color: #00ff88; background: rgba(0,255,136,0.08); }
+
+        /* MISMATCH BANNER */
+        .mismatch-banner {
+            background: rgba(255,170,0,0.1); border: 1px solid #ffaa00;
+            border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
+            font-size: 14px; color: #ffcc44;
+        }
+
+        /* TABLE */
+        table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #3a3a3a; font-size: 13px; }
+        th { background: #1a1a1a; color: #0099cc; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
+        tr:hover td { background: rgba(0,153,204,0.06); }
+
+        /* BADGES */
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+        .badge.terminal { background: #0099cc; color: white; }
+        .badge.cash { background: #00ff88; color: #1a1a1a; }
+
+        /* SERVICE BREAKDOWN */
+        .service-breakdown { background: #1a1a1a; border-radius: 10px; padding: 16px; margin-top: 16px; }
+        .service-breakdown h3 { color: #0099cc; font-size: 14px; margin-bottom: 12px; font-weight: 700; }
+        .service-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2d2d2d; font-size: 13px; }
+        .service-item:last-child { border-bottom: none; }
+
+        /* CHART */
+        .chart-container { position: relative; height: 280px; margin-top: 16px; }
+
+        /* EWIDENCJA CARDS */
+        .ew-summary {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px; margin-bottom: 16px;
+        }
+        .ew-card {
+            background: #1a1a1a; border-radius: 10px; padding: 14px;
+            border: 1px solid #333; text-align: center;
+        }
+        .ew-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .ew-card .value { font-size: 20px; font-weight: 900; }
+
+        /* WORKER TABS */
+        .worker-tabs {
+            display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .worker-tab {
+            flex: 1; min-width: 90px;
+            padding: 12px 10px; border-radius: 12px; border: 2px solid #444;
+            background: #1a1a1a; color: #888; font-size: 14px; font-weight: 700;
+            cursor: pointer; text-align: center; transition: all 0.2s;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .worker-tab:hover { border-color: #0099cc; color: #0099cc; }
+        .worker-tab.active { background: #0099cc; border-color: #0099cc; color: #fff; }
+        .worker-detail { animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:translateY(0);} }
+
+        /* SUMMARY ROW — always 3 per row */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px; margin-bottom: 4px;
+        }
+        /* WORKER STATS ROW — 4 per row, fills evenly */
+        .worker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px; margin-bottom: 16px;
+        }
+        @media (max-width: 700px) {
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+            .worker-grid  { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* SIDE BY SIDE */
+        .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        .side-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+        @media (max-width: 700px) {
+            .main-menu { grid-template-columns: 1fr; }
+            .side-by-side { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="logo-text"><span class="crew">CREW</span> CUT</div>
+        <div class="subtitle">📊 Analytics Dashboard</div>
+    </div>
+
+    <!-- Main Menu -->
+    <div class="main-menu">
+        <button class="menu-btn" id="menuStatystyki" onclick="showScreen('statystyki')">
+            <div class="icon">📊</div>
+            <div class="label">Statystyki</div>
+            <div class="desc">Raporty miesięczne z Google Sheets</div>
+        </button>
+        <button class="menu-btn" id="menuPorownaj" onclick="showScreen('porownaj')">
+            <div class="icon">🔍</div>
+            <div class="label">Porównaj Miesiąc</div>
+            <div class="desc">APP vs Booksy — wykryj rozbieżności</div>
+        </button>
+        <button class="menu-btn" id="menuEwidencja" onclick="showScreen('ewidencja')">
+            <div class="icon">📋</div>
+            <div class="label">Ewidencja Pracy</div>
+            <div class="desc">Wyciąg i zestawienie wizyt</div>
+        </button>
+    </div>
+
+    <!-- ══════════ SCREEN: STATYSTYKI ══════════ -->
+    <div class="screen" id="screenStatystyki">
+        <div id="statsLoading" class="loading" style="display:none;">
+            <div class="spinner"></div><p>Pobieranie danych...</p>
+        </div>
+        <div id="statsContent" style="display:none;">
+            <div class="month-bar">
+                <label>Miesiąc:</label>
+                <select class="month-select" id="statsMonthSelect" onchange="renderStatystyki()"></select>
+            </div>
+            <div id="statsOutput"></div>
+        </div>
+        <div id="statsError" style="display:none;"></div>
+    </div>
+
+    <!-- ══════════ SCREEN: POROWNAJ ══════════ -->
+    <div class="screen" id="screenPorownaj">
+        <div class="info-box">
+            <h3>Jak używać</h3>
+            <ol>
+                <li>Pobierz raport Excel z <strong style="color:white;">Booksy</strong> — musi zawierać nazwiska pracowników i status <strong style="color:white;">Zakończone</strong></li>
+                <li>Upuść plik poniżej lub kliknij aby go wybrać</li>
+                <li>Wybierz miesiąc do porównania z APP — możesz wybrać dowolny miesiąc z pliku</li>
+            </ol>
+            <div class="note">⚠️ Plik musi być eksportem Booksy w formacie <strong style="color:#ccc;">.xlsx / .xls</strong></div>
+        </div>
+
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">📥</div>
+            <h2>Przeciągnij i upuść Excel z Booksy</h2>
+            <p>lub kliknij aby wybrać plik</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;">
+        </div>
+
+        <div id="compareLoading" style="display:none;"></div>
+
+        <div id="compareContent" style="display:none;">
+            <div class="month-bar">
+                <label>Porównaj miesiąc:</label>
+                <select class="month-select" id="compareMonthSelect" onchange="renderPorownaj()"></select>
+                <span id="compareMonthHint" style="font-size:13px;color:#888;"></span>
+            </div>
+            <div id="compareOutput"></div>
+        </div>
+    </div>
+
+    <!-- ══════════ SCREEN: EWIDENCJA ══════════ -->
+    <div class="screen" id="screenEwidencja">
+        <div id="ewLoading" class="loading" style="display:none;">
+            <div class="spinner"></div><p>Pobieranie danych...</p>
+        </div>
+        <div id="ewContent" style="display:none;">
+            <div class="month-bar">
+                <label>Miesiąc:</label>
+                <select class="month-select" id="ewMonthSelect" onchange="renderEwidencja()"></select>
+            </div>
+            <div id="ewOutput"></div>
+        </div>
+        <div id="ewError" style="display:none;"></div>
+    </div>
+
+</div>
+<script>
+    const SPREADSHEET_ID = '1DE04_H5VlDa3qzmzsPD0bzXH_WTyqWHmji-kjDvfC00';
+    const API_KEY        = 'AIzaSyAgHBT9BHuN2GECz-Hf8ddPWFhglv7Jxu4';
+    const WORKERS        = ['Lukasz', 'Gabriel', 'Nadia'];
+
+    // Nadia has a different service menu than Lukasz/Gabriel
+    const NADIA_SERVICES = [
+        { name: 'Strzyżenie krótkich włosów',             price: 90  },
+        { name: 'Strzyżenie krótkich włosów i brody',     price: 130 },
+        { name: 'Combo+ pigmentacja',                     price: 160 },
+        { name: 'Strzyżenie brody',                       price: 70  },
+        { name: 'Strzyżenie na jedną długość+ broda',     price: 100 },
+    ];
+
+    const SERVICE_MAPPING = {
+        'Strzyżenie krótkich włosów': 'Strzyżenie krótkich włosów',
+        'Strzyżenie krótkich włosów+brody': 'Strzyżenie krótkich włosów+brody',
+        'Strzyżenie krótkich włosów i brody + pigmentacja': 'Strzyżenie krótkich włosów i brody + pigmentacja',
+        'Strzyżenie długich włosów': 'Strzyżenie długich włosów',
+        'Strzyżenie długich włosów i brody': 'Strzyżenie długich włosów i brody',
+        'Strzyżenie brody': 'Strzyżenie brody',
+        'Strzyżenie brody + pigmentacja': 'Strzyżenie brody + pigmentacja',
+        'Strzyżenie brody + golenie głowy': 'Strzyżenie brody + golenie głowy',
+        'Depilacja woskiem': 'Depilacja woskiem',
+        'Depilacja woskiem nosa/brwi/uszu': 'Depilacja woskiem',
+    };
+
+    let appData       = {};
+    let booksyData    = {};
+    let appDataLoaded = false;
+    let activeScreen  = null;
+    let trendsChart   = null;
+
+    // ── SCREEN SWITCHER ──────────────────────────────────────────────
+    function showScreen(name) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+        const capName = name.charAt(0).toUpperCase() + name.slice(1);
+        document.getElementById('screen' + capName).classList.add('active');
+        document.getElementById('menu'   + capName).classList.add('active');
+        activeScreen = name;
+
+        if (!appDataLoaded) {
+            loadAppData().then(() => {
+                appDataLoaded = true;
+                afterLoad(name);
+            });
+        } else {
+            afterLoad(name);
+        }
+    }
+
+    function afterLoad(name) {
+        if (name === 'statystyki') initStatystyki();
+        if (name === 'ewidencja')  initEwidencja();
+        // porownaj initialises after file upload
+    }
+
+    // ── LOAD GOOGLE SHEETS ───────────────────────────────────────────
+    async function loadAppData() {
+        const showLoad = (id) => {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = 'block'; el.innerHTML = '<div class="spinner"></div><p>Pobieranie danych...</p>'; }
+        };
+        if (activeScreen === 'statystyki') showLoad('statsLoading');
+        if (activeScreen === 'ewidencja')  showLoad('ewLoading');
+
+        try {
+            const resp = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?key=${API_KEY}&includeGridData=true`
+            );
+            if (!resp.ok) throw new Error('Nie można pobrać danych z Google Sheets.');
+            const data = await resp.json();
+            appData = {};
+
+            if (!data.sheets || !data.sheets.length) throw new Error('Arkusz nie zawiera żadnych zakładek.');
+
+            for (const sheet of data.sheets) {
+                const sName = sheet.properties.title;
+                if (['Dashboard','Booksy','Rozbieżności','Sheet1'].some(s => sName.includes(s))) continue;
+                // Skip sheets with no grid data
+                if (!sheet.data || !sheet.data[0]) continue;
+                const rows = sheet.data[0].rowData || [];
+                appData[sName] = {};
+
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i].values || [];
+                    if (row.length < 7) continue;
+                    const worker  = row[3]?.formattedValue || '';
+                    if (!worker) continue;
+                    const service = row[4]?.formattedValue || '';
+                    const price   = parseFloat(row[5]?.formattedValue || 0);
+                    const payment = row[6]?.formattedValue || '';
+                    const pomada  = parseFloat(row[7]?.formattedValue || 0);
+                    const napiwek = parseFloat(row[8]?.formattedValue || 0);
+                    const dateStr = row[1]?.formattedValue || '';
+                    const timeStr = row[2]?.formattedValue || '';
+                    if (!appData[sName][worker]) appData[sName][worker] = [];
+                    appData[sName][worker].push({ service, price, payment, pomada, napiwek, date: dateStr, time: timeStr });
+                }
+            }
+
+            document.getElementById('statsLoading').style.display = 'none';
+            document.getElementById('ewLoading').style.display    = 'none';
+
+        } catch (err) {
+            document.getElementById('statsLoading').style.display = 'none';
+            document.getElementById('ewLoading').style.display    = 'none';
+            const errHtml = `<div class="error-box"><div class="title">❌ Błąd pobierania danych</div><p style="color:#ccc;">${err.message}</p></div>`;
+            document.getElementById('statsError').style.display = 'block';
+            document.getElementById('statsError').innerHTML = errHtml;
+            document.getElementById('ewError').style.display = 'block';
+            document.getElementById('ewError').innerHTML = errHtml;
+        }
+    }
+
+    // ── HELPERS ──────────────────────────────────────────────────────
+    const MONTH_ORDER = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
+                         'Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+
+    function sortedMonths() {
+        return Object.keys(appData).sort((a, b) => {
+            const [mA, yA] = a.split(' ');
+            const [mB, yB] = b.split(' ');
+            if (yA !== yB) return parseInt(yA) - parseInt(yB);
+            return MONTH_ORDER.indexOf(mA) - MONTH_ORDER.indexOf(mB);
+        });
+    }
+
+    function populateSelect(id, months, selectLast = true) {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '';
+        months.forEach(m => {
+            const o = document.createElement('option');
+            o.value = m; o.textContent = m;
+            sel.appendChild(o);
+        });
+        if (selectLast && months.length) sel.value = months[months.length - 1];
+    }
+
+    function workerStats(month, worker) {
+        const visits   = appData[month]?.[worker] || [];
+        const terminal = visits.filter(v => v.payment === 'Terminal').reduce((s,v) => s+v.price, 0);
+        const cash     = visits.filter(v => v.payment === 'Gotówka').reduce((s,v) => s+v.price, 0);
+        const pomada   = visits.reduce((s,v) => s+(v.pomada||0), 0);
+        const napiwek  = visits.reduce((s,v) => s+(v.napiwek||0), 0);
+        const svcCount = {};
+        visits.forEach(v => { if (v.service) svcCount[v.service] = (svcCount[v.service]||0)+1; });
+        return { visits, terminal, cash, total: terminal+cash, pomada, napiwek, svcCount };
+    }
+
+    function svcBreakdownHTML(svcCount) {
+        if (!Object.keys(svcCount).length) return '';
+        let h = '<div class="service-breakdown"><h3>Rozkład usług</h3>';
+        for (const [s, c] of Object.entries(svcCount))
+            h += `<div class="service-item"><span>${s}</span><span style="color:#0099cc;font-weight:700;">${c}x</span></div>`;
+        return h + '</div>';
+    }
+
+    function appVisitsTableHTML(visits) {
+        if (!visits.length) return '<p style="color:#888;text-align:center;padding:16px;">Brak wizyt</p>';
+        return `<table><thead><tr>
+            <th>Data</th><th>Godzina</th><th>Usługa</th><th>Cena</th><th>Płatność</th><th>Pomada</th><th>Napiwek</th>
+        </tr></thead><tbody>
+        ${visits.map(v=>`<tr>
+            <td style="color:#888;font-size:12px;">${v.date||''}</td>
+            <td style="color:#888;font-size:12px;">${v.time||''}</td>
+            <td>${v.service}</td>
+            <td>${v.price} zł</td>
+            <td><span class="badge ${v.payment==='Terminal'?'terminal':'cash'}">${v.payment}</span></td>
+            <td>${v.pomada>0?v.pomada+' zł':'—'}</td>
+            <td>${v.napiwek>0?v.napiwek+' zł':'—'}</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+    }
+
+    function booksyVisitsTableHTML(visits) {
+        if (!visits.length) return '<p style="color:#888;text-align:center;padding:16px;">Brak wizyt</p>';
+        return `<table><thead><tr><th>Data</th><th>Usługa</th><th>Cena</th></tr></thead><tbody>
+        ${visits.map(v=>`<tr>
+            <td style="color:#888;font-size:12px;">${v.date||''}</td>
+            <td>${v.service}</td>
+            <td>${v.price} zł</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+    }
+
+    // ── STATYSTYKI ───────────────────────────────────────────────────
+    function initStatystyki() {
+        const months = sortedMonths();
+        if (!months.length) {
+            document.getElementById('statsError').style.display = 'block';
+            document.getElementById('statsError').innerHTML = '<div class="error-box"><div class="title">Brak danych w arkuszu</div></div>';
+            return;
+        }
+        populateSelect('statsMonthSelect', months);
+        document.getElementById('statsContent').style.display = 'block';
+        renderStatystyki();
+    }
+
+    let statsActiveWorker = WORKERS[0];
+
+    function renderStatystyki() {
+        const month = document.getElementById('statsMonthSelect').value;
+        let allT=0, allC=0, allP=0, allN=0, allV=0;
+        const workerData = {};
+
+        WORKERS.forEach(worker => {
+            const s = workerStats(month, worker);
+            allT+=s.terminal; allC+=s.cash; allP+=s.pomada; allN+=s.napiwek; allV+=s.visits.length;
+            workerData[worker] = s;
+        });
+
+        // Summary block — always 3 per row (2 rows of 3)
+        const summary = `<div class="section-card" style="border-color:#0099cc;background:linear-gradient(135deg,#0d2233,#1a1a1a);">
+            <h2>📊 Podsumowanie — ${month}</h2>
+            <div class="summary-grid">
+                <div class="stat-card"><div class="stat-label">Wszystkie wizyty</div><div class="stat-value">${allV}</div></div>
+                <div class="stat-card"><div class="stat-label">Terminal łącznie</div><div class="stat-value" style="color:#0099cc;">${allT} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Gotówka łącznie</div><div class="stat-value" style="color:#00ff88;">${allC} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Przychód usługi</div><div class="stat-value" style="color:#fff;">${allT+allC} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Pomada łącznie</div><div class="stat-value" style="color:#ffaa00;">${allP} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Napiwki łącznie</div><div class="stat-value" style="color:#00ff88;">${allN} zł</div></div>
+            </div>
+        </div>`;
+
+        // Worker tabs
+        const tabs = `<div class="worker-tabs">
+            ${WORKERS.map(w => `<div class="worker-tab${w===statsActiveWorker?' active':''}" data-worker="${w}" onclick="selectStatsWorker('${w}')">${w}</div>`).join('')}
+        </div>`;
+
+        // Active worker detail — 3 per row (2 rows of 3)
+        const s = workerData[statsActiveWorker];
+        const detail = `<div class="section-card worker-detail">
+            <h2 style="color:#fff;">${statsActiveWorker}</h2>
+            <div class="summary-grid">
+                <div class="stat-card"><div class="stat-label">Wizyty</div><div class="stat-value" style="color:#fff;">${s.visits.length}</div></div>
+                <div class="stat-card"><div class="stat-label">Terminal</div><div class="stat-value" style="color:#0099cc;">${s.terminal} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Gotówka</div><div class="stat-value" style="color:#00ff88;">${s.cash} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Usługi łącznie</div><div class="stat-value" style="color:#fff;">${s.total} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Pomada</div><div class="stat-value" style="color:#ffaa00;">${s.pomada} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Napiwki</div><div class="stat-value" style="color:#00ff88;">${s.napiwek} zł</div></div>
+            </div>
+            ${svcBreakdownHTML(s.svcCount)}
+        </div>`;
+
+        document.getElementById('statsOutput').innerHTML = summary + tabs + detail;
+    }
+
+    function selectStatsWorker(worker) {
+        statsActiveWorker = worker;
+        renderStatystyki();
+    }
+
+    // ── POROWNAJ ─────────────────────────────────────────────────────
+    const uploadSection = document.getElementById('uploadSection');
+    const fileInput     = document.getElementById('fileInput');
+
+    uploadSection.addEventListener('click', () => fileInput.click());
+    uploadSection.addEventListener('dragover', e => { e.preventDefault(); uploadSection.classList.add('dragover'); });
+    uploadSection.addEventListener('dragleave', () => uploadSection.classList.remove('dragover'));
+    uploadSection.addEventListener('drop', e => {
+        e.preventDefault(); uploadSection.classList.remove('dragover');
+        if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+    async function handleFile(file) {
+        const loadEl = document.getElementById('compareLoading');
+        loadEl.style.display = 'block';
+        loadEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Wczytywanie pliku...</p></div>';
+        uploadSection.style.display = 'none';
+
+        try {
+            const raw      = await file.arrayBuffer();
+            const workbook = XLSX.read(raw);
+            const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+            // Pre-scan for debug info
+            const workersFound = ['Gabriel','Łukasz','Lukasz','Nadia'].filter(w =>
+                jsonData.some(row => row.join(' ').includes(w)));
+            const hasDate    = jsonData.some(row => row.some(c => String(c).match(/\d{2}\.\d{2}\.\d{4}/)));
+            const hasZakoncz = jsonData.some(row => row.some(c => String(c).trim() === 'Zakończone'));
+
+            booksyData = parseBooksyData(jsonData);
+            const totalVisits = Object.values(booksyData).reduce((s,m) =>
+                s + Object.values(m).reduce((ss,v) => ss+v.length, 0), 0);
+
+            if (totalVisits === 0) {
+                loadEl.innerHTML = `<div class="error-box">
+                    <div class="title">❌ Nie rozpoznano danych Booksy</div>
+                    <ul>
+                        <li>To nie jest eksport z Booksy</li>
+                        <li>Brak pracowników (Gabriel, Łukasz, Nadia) w pliku</li>
+                        <li>Brak wizyt ze statusem "Zakończone"</li>
+                        <li>Inny format daty lub kolumn</li>
+                    </ul>
+                    <div class="debug-block">
+                        <div class="debug-title">🔍 Debug info</div>
+                        <div>📄 Plik: <strong>${file.name}</strong></div>
+                        <div>📋 Arkusze: <strong>${workbook.SheetNames.join(', ')}</strong></div>
+                        <div>📊 Wierszy: <strong>${jsonData.length}</strong></div>
+                        <div>👤 Pracownicy: <strong>${workersFound.length ? workersFound.join(', ') : '❌ nie znaleziono'}</strong></div>
+                        <div>📅 Format daty DD.MM.RRRR: <strong>${hasDate ? '✅ znaleziony' : '❌ nie znaleziony'}</strong></div>
+                        <div>✅ Status "Zakończone": <strong>${hasZakoncz ? '✅ znaleziony' : '❌ nie znaleziony'}</strong></div>
+                    </div>
+                    <button class="retry-btn" onclick="resetUpload()">↩ Spróbuj ponownie</button>
+                </div>`;
+                return;
+            }
+
+            // Ensure app data loaded
+            if (!appDataLoaded) {
+                loadEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Pobieranie danych z Google Sheets...</p></div>';
+                await loadAppData();
+                appDataLoaded = true;
+            }
+
+            loadEl.style.display = 'none';
+
+            // Populate month selector with Booksy months, best-match app month pre-selected
+            const booksyMonths = Object.keys(booksyData).sort((a,b) => {
+                const [mA,yA]=a.split(' '), [mB,yB]=b.split(' ');
+                if (yA!==yB) return parseInt(yA)-parseInt(yB);
+                return MONTH_ORDER.indexOf(mA)-MONTH_ORDER.indexOf(mB);
+            });
+            const appMonths  = sortedMonths();
+            const bestMatch  = booksyMonths.find(m => appMonths.includes(m)) || booksyMonths[booksyMonths.length-1];
+
+            populateSelect('compareMonthSelect', booksyMonths, false);
+            document.getElementById('compareMonthSelect').value = bestMatch;
+
+            if (!appMonths.includes(bestMatch)) {
+                document.getElementById('compareMonthHint').textContent = '⚠️ Brak danych APP dla tego miesiąca';
+            }
+
+            document.getElementById('compareContent').style.display = 'block';
+            renderPorownaj();
+
+        } catch (err) {
+            document.getElementById('compareLoading').innerHTML = `<div class="error-box">
+                <div class="title">❌ Błąd wczytywania pliku</div>
+                <p style="color:#ccc;">${err.message}</p>
+                <button class="retry-btn" onclick="resetUpload()">↩ Spróbuj ponownie</button>
+            </div>`;
+        }
+    }
+
+    function resetUpload() {
+        document.getElementById('compareLoading').style.display = 'none';
+        document.getElementById('compareContent').style.display = 'none';
+        uploadSection.style.display = 'block';
+        fileInput.value = '';
+        booksyData = {};
+    }
+
+    function renderPorownaj() {
+        const month    = document.getElementById('compareMonthSelect').value;
+        const appMonths = sortedMonths();
+        const hasApp   = appMonths.includes(month);
+        let html = '';
+
+        if (!hasApp) {
+            html += `<div class="mismatch-banner">
+                ⚠️ Brak danych APP dla miesiąca <strong style="color:white;margin:0 4px;">${month}</strong>.
+                Widoczne są dane tylko z Booksy. Dane APP pojawią się gdy pierwsze wizyty z aplikacji zostaną zapisane.
+            </div>`;
+        }
+
+        // Discrepancies summary
+        let discHtml = '', anyDisc = false;
+        WORKERS.forEach(worker => {
+            const ac = appData[month]?.[worker]?.length || 0;
+            const bc = booksyData[month]?.[worker]?.length || 0;
+            const d  = ac - bc;
+            if (d !== 0) anyDisc = true;
+            discHtml += d !== 0
+                ? `<div class="disc-item"><strong>${worker}:</strong> APP: ${ac} | Booksy: ${bc} | <span style="color:${d>0?'#00ff88':'#ff0033'};font-weight:900;">${d>0?'+':''}${d}</span></div>`
+                : `<div class="disc-item ok">✓ ${worker}: APP ${ac} = Booksy ${bc}</div>`;
+        });
+
+        html += `<div class="section-card" style="border-color:${anyDisc?'#ff0033':'#00ff88'};">
+            <h2 style="color:${anyDisc?'#ff0033':'#00ff88'};">${anyDisc?'⚠️ Rozbieżności':'✅ Brak rozbieżności'} — ${month}</h2>
+            ${discHtml}
+        </div>`;
+
+        // Per-worker side-by-side
+        WORKERS.forEach(worker => {
+            const appV    = appData[month]?.[worker]   || [];
+            const bookV   = booksyData[month]?.[worker] || [];
+            const appRev  = appV.reduce((s,v)  => s+v.price, 0);
+            const bookRev = bookV.reduce((s,v) => s+v.price, 0);
+
+            html += `<div class="section-card">
+                <h2>${worker}</h2>
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-label">Wizyty APP</div><div class="stat-value">${appV.length}</div></div>
+                    <div class="stat-card"><div class="stat-label">Wizyty Booksy</div><div class="stat-value" style="color:#ff6666;">${bookV.length}</div></div>
+                    <div class="stat-card"><div class="stat-label">Przychód APP</div><div class="stat-value">${appRev} zł</div></div>
+                    <div class="stat-card"><div class="stat-label">Przychód Booksy</div><div class="stat-value" style="color:#ff6666;">${bookRev} zł</div></div>
+                </div>
+                <div class="side-by-side">
+                    <div>
+                        <div class="side-label" style="color:#0099cc;">📱 APP</div>
+                        ${appVisitsTableHTML(appV)}
+                    </div>
+                    <div>
+                        <div class="side-label" style="color:#ff6666;">📅 Booksy</div>
+                        ${booksyVisitsTableHTML(bookV)}
+                    </div>
+                </div>
+            </div>`;
+        });
+
+        // Chart
+        html += `<div class="section-card">
+            <h2>📈 Porównanie wizyt — ${month}</h2>
+            <div class="chart-container"><canvas id="compareChart"></canvas></div>
+        </div>`;
+
+        document.getElementById('compareOutput').innerHTML = html;
+
+        setTimeout(() => {
+            const ctx = document.getElementById('compareChart');
+            if (!ctx) return;
+            if (trendsChart) trendsChart.destroy();
+            trendsChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: WORKERS,
+                    datasets: [
+                        { label: 'APP',    data: WORKERS.map(w => appData[month]?.[w]?.length||0),    backgroundColor: '#0099cc' },
+                        { label: 'Booksy', data: WORKERS.map(w => booksyData[month]?.[w]?.length||0), backgroundColor: '#ff0033' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color:'white' } } },
+                    scales: {
+                        y: { beginAtZero:true, ticks:{color:'white'}, grid:{color:'#444'} },
+                        x: { ticks:{color:'white'}, grid:{color:'#333'} }
+                    }
+                }
+            });
+        }, 50);
+    }
+
+    // ── EWIDENCJA ────────────────────────────────────────────────────
+    function initEwidencja() {
+        const months = sortedMonths();
+        if (!months.length) {
+            document.getElementById('ewError').style.display = 'block';
+            document.getElementById('ewError').innerHTML = '<div class="error-box"><div class="title">Brak danych w arkuszu</div></div>';
+            return;
+        }
+        populateSelect('ewMonthSelect', months);
+        document.getElementById('ewContent').style.display = 'block';
+        renderEwidencja();
+    }
+
+    let ewActiveWorker = WORKERS[0];
+
+    function renderEwidencja() {
+        const month = document.getElementById('ewMonthSelect').value;
+
+        // Grand total
+        const all = WORKERS.map(w => workerStats(month, w));
+        const tV = all.reduce((s,w)=>s+w.visits.length,0);
+        const tT = all.reduce((s,w)=>s+w.terminal,0);
+        const tC = all.reduce((s,w)=>s+w.cash,0);
+        const tP = all.reduce((s,w)=>s+w.pomada,0);
+        const tN = all.reduce((s,w)=>s+w.napiwek,0);
+
+        const summary = `<div class="section-card" style="border-color:#0099cc;background:linear-gradient(135deg,#0d2233,#1a1a1a);">
+            <h2>📋 Wyciąg zbiorczy — ${month}</h2>
+            <div class="summary-grid">
+                <div class="stat-card"><div class="stat-label">Wszystkie wizyty</div><div class="stat-value">${tV}</div></div>
+                <div class="stat-card"><div class="stat-label">Terminal łącznie</div><div class="stat-value" style="color:#0099cc;">${tT} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Gotówka łącznie</div><div class="stat-value" style="color:#00ff88;">${tC} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Usługi łącznie</div><div class="stat-value" style="color:#fff;">${tT+tC} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Pomada łącznie</div><div class="stat-value" style="color:#ffaa00;">${tP} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Napiwki łącznie</div><div class="stat-value" style="color:#00ff88;">${tN} zł</div></div>
+            </div>
+        </div>`;
+
+        // Worker tabs
+        const tabs = `<div class="worker-tabs">
+            ${WORKERS.map(w => `<div class="worker-tab${w===ewActiveWorker?' active':''}" data-worker="${w}" onclick="selectEwWorker('${w}')">${w}</div>`).join('')}
+        </div>`;
+
+        // Active worker detail
+        const s = workerStats(month, ewActiveWorker);
+        const detail = s.visits.length === 0
+            ? `<div class="section-card worker-detail"><p style="color:#888;text-align:center;padding:20px;">Brak wizyt dla ${ewActiveWorker} w ${month}</p></div>`
+            : `<div class="section-card worker-detail">
+                <h2 style="color:#fff;">${ewActiveWorker}</h2>
+                <div class="summary-grid">
+                    <div class="stat-card"><div class="stat-label">Wizyty</div><div class="stat-value" style="color:#fff;">${s.visits.length}</div></div>
+                    <div class="stat-card"><div class="stat-label">Terminal</div><div class="stat-value" style="color:#0099cc;">${s.terminal} zł</div></div>
+                    <div class="stat-card"><div class="stat-label">Gotówka</div><div class="stat-value" style="color:#00ff88;">${s.cash} zł</div></div>
+                    <div class="stat-card"><div class="stat-label">Usługi łącznie</div><div class="stat-value" style="color:#fff;">${s.total} zł</div></div>
+                    <div class="stat-card"><div class="stat-label">Pomada</div><div class="stat-value" style="color:#ffaa00;">${s.pomada} zł</div></div>
+                    <div class="stat-card"><div class="stat-label">Napiwki</div><div class="stat-value" style="color:#00ff88;">${s.napiwek} zł</div></div>
+                </div>
+                ${svcBreakdownHTML(s.svcCount)}
+                ${appVisitsTableHTML(s.visits)}
+            </div>`;
+
+        document.getElementById('ewOutput').innerHTML = summary + tabs + detail;
+    }
+
+    function selectEwWorker(worker) {
+        ewActiveWorker = worker;
+        renderEwidencja();
+    }
+
+    // ── BOOKSY PARSER ────────────────────────────────────────────────
+    function parseBooksyData(data) {
+        const parsed = {};
+        let currentWorker = null;
+
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            if (!row || row.every(c => !c)) continue;
+
+            // Detect worker header rows — these have few non-empty cells and no date pattern
+            const nonEmpty = row.filter(c => String(c||'').trim()).length;
+            const hasDate  = row.some(c => String(c||'').match(/\d{2}\.\d{2}\.\d{4}/));
+            if (!hasDate && nonEmpty <= 4) {
+                const rowStr = row.join(' ');
+                if (rowStr.includes('Gabriel'))                             { currentWorker = 'Gabriel'; continue; }
+                if (rowStr.includes('Nadia'))                               { currentWorker = 'Nadia';   continue; }
+                if (rowStr.includes('Łukasz') || rowStr.includes('Lukasz')) { currentWorker = 'Lukasz';  continue; }
+            }
+
+            let dateStr = null, dateColIdx = -1;
+            for (let c = 0; c < row.length; c++) {
+                if (String(row[c]||'').match(/\d{2}\.\d{2}\.\d{4}/)) {
+                    dateStr    = String(row[c]).split(' ')[0];
+                    dateColIdx = c;
+                    break;
+                }
+            }
+            if (!dateStr || !currentWorker) continue;
+
+            const parts = dateStr.split('.');
+            const month = `${getMonthName(parts[1])} ${parts[2]}`;
+            if (!parsed[month]) parsed[month] = {};
+            if (!parsed[month][currentWorker]) parsed[month][currentWorker] = [];
+
+            let status = '';
+            for (const col of row) {
+                const v = String(col||'').trim();
+                if (['Zakończone','Anulowane','Nieobecność'].includes(v)) { status = v; break; }
+            }
+
+            let service = '';
+            for (let j = dateColIdx+2; j < Math.min(dateColIdx+6, row.length); j++) {
+                const v = String(row[j]||'').trim();
+                if (v && v.length > 5 && !v.match(/^\d/)) { service = v; break; }
+            }
+            service = SERVICE_MAPPING[service] || service;
+
+            let price = 0;
+            for (const col of row) {
+                const v = String(col||'');
+                if (v.match(/\d+[,\.]\d+\s*zł/)) {
+                    price = parseFloat(v.replace(/[^\d,]/g,'').replace(',','.')) || 0;
+                    break;
+                }
+            }
+
+            if (status === 'Zakończone') {
+                parsed[month][currentWorker].push({ date: dateStr, service, price });
+            }
+        }
+        return parsed;
+    }
+
+    function getMonthName(n) {
+        return {'01':'Styczeń','02':'Luty','03':'Marzec','04':'Kwiecień','05':'Maj','06':'Czerwiec',
+                '07':'Lipiec','08':'Sierpień','09':'Wrzesień','10':'Październik','11':'Listopad','12':'Grudzień'}[n]||n;
+    }
+</script>
+</body>
+</html>
