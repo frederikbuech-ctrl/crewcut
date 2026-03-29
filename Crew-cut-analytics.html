@@ -644,7 +644,7 @@
             // Pre-scan for debug info
             const workersFound = ['Gabriel','Łukasz','Lukasz','Nadia'].filter(w =>
                 jsonData.some(row => row.join(' ').includes(w)));
-            const hasDate    = jsonData.some(row => row.some(c => String(c).match(/\d{2}\.\d{2}\.\d{4}/)));
+            const hasDate    = jsonData.some(row => row.some(c => String(c).match(/\d{1,2}\.\d{2}\.\d{4}/)));
             const hasZakoncz = jsonData.some(row => row.some(c => String(c).trim() === 'Zakończone'));
 
             booksyData = parseBooksyData(jsonData);
@@ -890,7 +890,7 @@
 
             // Detect worker header rows — these have few non-empty cells and no date pattern
             const nonEmpty = row.filter(c => String(c||'').trim()).length;
-            const hasDate  = row.some(c => String(c||'').match(/\d{2}\.\d{2}\.\d{4}/));
+            const hasDate  = row.some(c => String(c||'').match(/\d{1,2}\.\d{2}\.\d{4}/));
             if (!hasDate && nonEmpty <= 4) {
                 const rowStr = row.join(' ');
                 if (rowStr.includes('Gabriel'))                             { currentWorker = 'Gabriel'; continue; }
@@ -900,7 +900,7 @@
 
             let dateStr = null, dateColIdx = -1;
             for (let c = 0; c < row.length; c++) {
-                if (String(row[c]||'').match(/\d{2}\.\d{2}\.\d{4}/)) {
+                if (String(row[c]||'').match(/\d{1,2}\.\d{2}\.\d{4}/)) {
                     dateStr    = String(row[c]).split(' ')[0];
                     dateColIdx = c;
                     break;
