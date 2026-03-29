@@ -765,39 +765,76 @@
             ${discHtml}
         </div>`;
 
-        // Per-worker service breakdown
+        // Per-worker day-by-day breakdown
         WORKERS.forEach(worker => {
             const appV    = appData[month]?.[worker]   || [];
             const bookV   = booksyData[month]?.[worker] || [];
             const appRev  = appV.reduce((s,v)  => s+v.price, 0);
             const bookRev = bookV.reduce((s,v) => s+v.price, 0);
             const d       = appV.length - bookV.length;
+            const borderColor = d !== 0 ? '#ff0033' : '#00ff88';
 
-            // Count per service in APP and Booksy
-            const appSvc = {}, bookSvc = {};
-            appV.forEach(v  => { if (v.service) appSvc[v.service]  = (appSvc[v.service]  || 0) + 1; });
-            bookV.forEach(v => { if (v.service) bookSvc[v.service] = (bookSvc[v.service] || 0) + 1; });
-            const allSvcs = [...new Set([...Object.keys(appSvc), ...Object.keys(bookSvc)])].sort();
+            // Group by date
+            const appByDay = {}, bookByDay = {};
+            appV.forEach(v  => { if (!appByDay[v.date])  appByDay[v.date]  = []; appByDay[v.date].push(v.service);  });
+            bookV.forEach(v => { if (!bookByDay[v.date]) bookByDay[v.date] = []; bookByDay[v.date].push(v.service); });
 
-            let svcRows = '';
-            allSvcs.forEach(svc => {
-                const ac = appSvc[svc]  || 0;
-                const bc = bookSvc[svc] || 0;
-                const dd = ac - bc;
-                const diffHtml = dd > 0
-                    ? `<span class="svc-diff-plus">+${dd}</span>`
-                    : dd < 0
-                        ? `<span class="svc-diff-minus">${dd}</span>`
-                        : `<span class="svc-diff-zero">—</span>`;
-                svcRows += `<tr>
-                    <td>${svc}</td>
-                    <td><span class="svc-pill svc-pill-app">${ac}</span></td>
-                    <td><span class="svc-pill svc-pill-booksy">${bc}</span></td>
-                    <td>${diffHtml}</td>
-                </tr>`;
+            // All days that have any data, sorted
+            const allDays = [...new Set([...Object.keys(appByDay), ...Object.keys(bookByDay)])].sort((a, b) => {
+                const pa = a.split('.'), pb = b.split('.');
+                return new Date(pa[2], pa[1]-1, pa[0]) - new Date(pb[2], pb[1]-1, pb[0]);
             });
 
-            const borderColor = d !== 0 ? '#ff0033' : '#00ff88';
+            // Only show days with discrepancies
+            const discDays = allDays.filter(day => {
+                const aList = appByDay[day]  || [];
+                const bList = bookByDay[day] || [];
+                return aList.length !== bList.length ||
+                    JSON.stringify([...aList].sort()) !== JSON.stringify([...bList].sort());
+            });
+
+            let dayRows = '';
+            if (discDays.length === 0) {
+                dayRows = '<tr><td colspan="3" style="color:#00ff88;padding:16px;text-align:center;font-size:13px;">✅ Brak rozbieżności dziennych</td></tr>';
+            } else {
+                discDays.forEach(day => {
+                    const aList = appByDay[day]  || [];
+                    const bList = bookByDay[day] || [];
+
+                    // Find which services are extra/missing per side
+                    const aCopy = [...aList], bCopy = [...bList];
+                    const aExtra = [], bExtra = [];
+                    aCopy.forEach(s => {
+                        const idx = bCopy.indexOf(s);
+                        if (idx === -1) aExtra.push(s);
+                        else bCopy.splice(idx, 1);
+                    });
+                    bList.forEach(s => {
+                        const idx = aList.indexOf(s);
+                        if (idx === -1) bExtra.push(s);
+                    });
+
+                    const appCell = aList.length === 0
+                        ? '<span style="color:#555;font-size:12px;font-style:italic;">brak</span>'
+                        : aList.map(s => {
+                            const isExtra = aExtra.includes(s) && (() => { aExtra.splice(aExtra.indexOf(s),1); return true; })();
+                            return `<div style="font-size:12px;padding:3px 8px;border-radius:6px;margin-bottom:3px;background:${isExtra?'rgba(0,255,136,0.1)':'rgba(255,255,255,0.04)'};color:${isExtra?'#00ff88':'#ccc'};">${s}</div>`;
+                          }).join('');
+
+                    const bookCell = bList.length === 0
+                        ? '<span style="color:#555;font-size:12px;font-style:italic;">brak</span>'
+                        : bList.map(s => {
+                            const isExtra = bExtra.includes(s) && (() => { bExtra.splice(bExtra.indexOf(s),1); return true; })();
+                            return `<div style="font-size:12px;padding:3px 8px;border-radius:6px;margin-bottom:3px;background:${isExtra?'rgba(255,0,51,0.1)':'rgba(255,255,255,0.04)'};color:${isExtra?'#ff4466':'#ccc'};">${s}</div>`;
+                          }).join('');
+
+                    dayRows += `<tr>
+                        <td style="color:#888;font-size:12px;vertical-align:top;padding-top:8px;white-space:nowrap;">${day}</td>
+                        <td style="vertical-align:top;padding:6px 8px;">${appCell}</td>
+                        <td style="vertical-align:top;padding:6px 8px;">${bookCell}</td>
+                    </tr>`;
+                });
+            }
 
             html += `<div class="section-card" style="border-color:${borderColor};">
                 <h2>${worker}</h2>
@@ -807,49 +844,19 @@
                     <div class="stat-card"><div class="stat-label">Przychód APP</div><div class="stat-value">${appRev} zł</div></div>
                     <div class="stat-card"><div class="stat-label">Przychód Booksy</div><div class="stat-value" style="color:#ff6666;">${bookRev} zł</div></div>
                 </div>
-                ${allSvcs.length ? `<table class="svc-compare-table">
+                ${discDays.length > 0 ? `<p style="font-size:12px;color:#888;margin:12px 0 4px;">Tylko dni z rozbieżnościami — <span style="color:#00ff88;">zielony</span> = tylko w APP, <span style="color:#ff4466;">czerwony</span> = tylko w Booksy</p>` : ''}
+                <table class="svc-compare-table">
                     <thead><tr>
-                        <th>Usługa</th>
-                        <th style="color:#0099cc;">APP</th>
-                        <th style="color:#ff6666;">Booksy</th>
-                        <th>Różnica</th>
+                        <th style="width:80px;">Data</th>
+                        <th style="color:#0099cc;">📱 APP</th>
+                        <th style="color:#ff6666;">📅 Booksy</th>
                     </tr></thead>
-                    <tbody>${svcRows}</tbody>
-                </table>` : '<p style="color:#888;padding:14px 0;font-size:13px;">Brak danych usług</p>'}
+                    <tbody>${dayRows}</tbody>
+                </table>
             </div>`;
         });
 
-        // Chart
-        html += `<div class="section-card">
-            <h2>📈 Porównanie wizyt — ${month}</h2>
-            <div class="chart-container"><canvas id="compareChart"></canvas></div>
-        </div>`;
-
         document.getElementById('compareOutput').innerHTML = html;
-
-        setTimeout(() => {
-            const ctx = document.getElementById('compareChart');
-            if (!ctx) return;
-            if (trendsChart) trendsChart.destroy();
-            trendsChart = new Chart(ctx.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: WORKERS,
-                    datasets: [
-                        { label: 'APP',    data: WORKERS.map(w => appData[month]?.[w]?.length||0),    backgroundColor: '#0099cc' },
-                        { label: 'Booksy', data: WORKERS.map(w => booksyData[month]?.[w]?.length||0), backgroundColor: '#ff0033' }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color:'white' } } },
-                    scales: {
-                        y: { beginAtZero:true, ticks:{color:'white'}, grid:{color:'#444'} },
-                        x: { ticks:{color:'white'}, grid:{color:'#333'} }
-                    }
-                }
-            });
-        }, 50);
     }
 
     // ── EWIDENCJA ────────────────────────────────────────────────────
@@ -925,21 +932,30 @@
     function parseBooksyData(data) {
         const parsed = {};
         let currentWorker = null;
+        const TRACKED_WORKERS = ['Gabriel', 'Nadia', 'Lukasz', 'Łukasz'];
+        const UNTRACKED_WORKERS = ['Dawid', 'Szymon'];
 
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
             if (!row || row.every(c => !c)) continue;
 
-            // Detect worker header rows — these have few non-empty cells and no date pattern
+            // Detect worker section header rows — single cell with a name, no date
+            // Use strict check: only col index 1 contains the name, rest are empty
             const nonEmpty = row.filter(c => String(c||'').trim()).length;
             const hasDate  = row.some(c => String(c||'').match(/\d{1,2}\.\d{2}\.\d{4}/));
-            if (!hasDate && nonEmpty <= 4) {
-                const rowStr = row.join(' ');
-                if (rowStr.includes('Gabriel'))                             { currentWorker = 'Gabriel'; continue; }
-                if (rowStr.includes('Nadia'))                               { currentWorker = 'Nadia';   continue; }
-                if (rowStr.includes('Łukasz') || rowStr.includes('Lukasz')) { currentWorker = 'Lukasz';  continue; }
+            if (!hasDate && nonEmpty <= 2) {
+                // Worker section headers — find the name anywhere in the row
+                const rowStr = row.map(c => String(c||'').trim()).join(' ').trim();
+                if (rowStr === 'Gabriel')                         { currentWorker = 'Gabriel'; continue; }
+                if (rowStr === 'Nadia')                           { currentWorker = 'Nadia';   continue; }
+                if (rowStr === 'Łukasz' || rowStr === 'Lukasz')  { currentWorker = 'Lukasz';  continue; }
+                if (rowStr === 'Dawid'  || rowStr === 'Szymon')  { currentWorker = null;       continue; }
             }
 
+            // Skip if untracked worker or no worker set
+            if (!currentWorker) continue;
+
+            // Find date column
             let dateStr = null, dateColIdx = -1;
             for (let c = 0; c < row.length; c++) {
                 if (String(row[c]||'').match(/\d{1,2}\.\d{2}\.\d{4}/)) {
@@ -948,33 +964,30 @@
                     break;
                 }
             }
-            if (!dateStr || !currentWorker) continue;
+            if (!dateStr) continue;
 
             const parts = dateStr.split('.');
             const month = `${getMonthName(parts[1])} ${parts[2]}`;
             if (!parsed[month]) parsed[month] = {};
             if (!parsed[month][currentWorker]) parsed[month][currentWorker] = [];
 
+            // Status is always the last non-empty cell
             let status = '';
-            for (const col of row) {
-                const v = String(col||'').trim();
-                if (['Zakończone','Anulowane','Nieobecność'].includes(v)) { status = v; break; }
+            for (let c = row.length - 1; c >= 0; c--) {
+                const v = String(row[c]||'').trim();
+                if (['Zakończone','Anulowane','Nieobecność','Potwierdzone'].includes(v)) { status = v; break; }
             }
 
-            let service = '';
-            for (let j = dateColIdx+2; j < Math.min(dateColIdx+6, row.length); j++) {
-                const v = String(row[j]||'').trim();
-                if (v && v.length > 5 && !v.match(/^\d/)) { service = v; break; }
-            }
-            service = SERVICE_MAPPING[service] || service;
+            // Service is always dateColIdx+3 (col order: lp, date, bookingID, category, SERVICE, client...)
+            const service_raw = String(row[dateColIdx+3]||'').trim();
+            const service = SERVICE_MAPPING[service_raw] || service_raw;
 
+            // Price is at dateColIdx+6 (Wartość usług column) — plain integer in Excel
             let price = 0;
-            for (const col of row) {
-                const v = String(col||'');
-                if (v.match(/\d+[,\.]\d+\s*zł/)) {
-                    price = parseFloat(v.replace(/[^\d,]/g,'').replace(',','.')) || 0;
-                    break;
-                }
+            const priceCell = row[dateColIdx + 6];
+            if (priceCell !== null && priceCell !== undefined && priceCell !== '') {
+                const parsed_price = parseFloat(String(priceCell).replace(',', '.'));
+                if (!isNaN(parsed_price)) price = parsed_price;
             }
 
             if (status === 'Zakończone') {
