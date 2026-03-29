@@ -266,6 +266,20 @@
         .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
         .side-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
 
+        /* SERVICE COMPARISON TABLE */
+        .svc-compare-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+        .svc-compare-table th { background: #1a1a1a; color: #0099cc; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; padding: 10px 12px; text-align: center; }
+        .svc-compare-table th:first-child { text-align: left; }
+        .svc-compare-table td { padding: 9px 12px; border-bottom: 1px solid #3a3a3a; font-size: 13px; text-align: center; }
+        .svc-compare-table td:first-child { text-align: left; }
+        .svc-compare-table tr:hover td { background: rgba(0,153,204,0.06); }
+        .svc-pill { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; min-width: 32px; }
+        .svc-pill-app { background: rgba(0,153,204,0.15); color: #0099cc; }
+        .svc-pill-booksy { background: rgba(255,102,102,0.15); color: #ff6666; }
+        .svc-diff-plus { color: #00ff88; font-weight: 900; }
+        .svc-diff-minus { color: #ff0033; font-weight: 900; }
+        .svc-diff-zero { color: #555; font-weight: 700; }
+
         @media (max-width: 700px) {
             .main-menu { grid-template-columns: 1fr; }
             .side-by-side { grid-template-columns: 1fr; }
@@ -386,7 +400,9 @@
         'Strzyżenie brody + pigmentacja': 'Strzyżenie brody + pigmentacja',
         'Strzyżenie brody + golenie głowy': 'Strzyżenie brody + golenie głowy',
         'Depilacja woskiem': 'Depilacja woskiem',
-        'Depilacja woskiem nosa/brwi/uszu': 'Depilacja woskiem',
+        'Depilacja woskiem nosa/brwi/uszu': 'Depilacja woskiem nosa/brwi/uszu',
+        'Combo + pigmentacja brody': 'Combo+ pigmentacja',
+        'Combo+pigmentacja': 'Combo+ pigmentacja',
     };
 
     let appData       = {};
@@ -749,14 +765,41 @@
             ${discHtml}
         </div>`;
 
-        // Per-worker side-by-side
+        // Per-worker service breakdown
         WORKERS.forEach(worker => {
             const appV    = appData[month]?.[worker]   || [];
             const bookV   = booksyData[month]?.[worker] || [];
             const appRev  = appV.reduce((s,v)  => s+v.price, 0);
             const bookRev = bookV.reduce((s,v) => s+v.price, 0);
+            const d       = appV.length - bookV.length;
 
-            html += `<div class="section-card">
+            // Count per service in APP and Booksy
+            const appSvc = {}, bookSvc = {};
+            appV.forEach(v  => { if (v.service) appSvc[v.service]  = (appSvc[v.service]  || 0) + 1; });
+            bookV.forEach(v => { if (v.service) bookSvc[v.service] = (bookSvc[v.service] || 0) + 1; });
+            const allSvcs = [...new Set([...Object.keys(appSvc), ...Object.keys(bookSvc)])].sort();
+
+            let svcRows = '';
+            allSvcs.forEach(svc => {
+                const ac = appSvc[svc]  || 0;
+                const bc = bookSvc[svc] || 0;
+                const dd = ac - bc;
+                const diffHtml = dd > 0
+                    ? `<span class="svc-diff-plus">+${dd}</span>`
+                    : dd < 0
+                        ? `<span class="svc-diff-minus">${dd}</span>`
+                        : `<span class="svc-diff-zero">—</span>`;
+                svcRows += `<tr>
+                    <td>${svc}</td>
+                    <td><span class="svc-pill svc-pill-app">${ac}</span></td>
+                    <td><span class="svc-pill svc-pill-booksy">${bc}</span></td>
+                    <td>${diffHtml}</td>
+                </tr>`;
+            });
+
+            const borderColor = d !== 0 ? '#ff0033' : '#00ff88';
+
+            html += `<div class="section-card" style="border-color:${borderColor};">
                 <h2>${worker}</h2>
                 <div class="stats-grid">
                     <div class="stat-card"><div class="stat-label">Wizyty APP</div><div class="stat-value">${appV.length}</div></div>
@@ -764,16 +807,15 @@
                     <div class="stat-card"><div class="stat-label">Przychód APP</div><div class="stat-value">${appRev} zł</div></div>
                     <div class="stat-card"><div class="stat-label">Przychód Booksy</div><div class="stat-value" style="color:#ff6666;">${bookRev} zł</div></div>
                 </div>
-                <div class="side-by-side">
-                    <div>
-                        <div class="side-label" style="color:#0099cc;">📱 APP</div>
-                        ${appVisitsTableHTML(appV)}
-                    </div>
-                    <div>
-                        <div class="side-label" style="color:#ff6666;">📅 Booksy</div>
-                        ${booksyVisitsTableHTML(bookV)}
-                    </div>
-                </div>
+                ${allSvcs.length ? `<table class="svc-compare-table">
+                    <thead><tr>
+                        <th>Usługa</th>
+                        <th style="color:#0099cc;">APP</th>
+                        <th style="color:#ff6666;">Booksy</th>
+                        <th>Różnica</th>
+                    </tr></thead>
+                    <tbody>${svcRows}</tbody>
+                </table>` : '<p style="color:#888;padding:14px 0;font-size:13px;">Brak danych usług</p>'}
             </div>`;
         });
 
