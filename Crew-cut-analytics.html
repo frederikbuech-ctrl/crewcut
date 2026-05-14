@@ -280,6 +280,13 @@
         .svc-diff-minus { color: #ff0033; font-weight: 900; }
         .svc-diff-zero { color: #555; font-weight: 700; }
 
+        /* DAY COUNTER PILLS */
+        .day-counter { display: inline-flex; gap: 4px; margin-top: 4px; }
+        .day-counter span { font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 700; }
+        .day-counter .cnt-app { background: rgba(0,153,204,0.2); color: #0099cc; }
+        .day-counter .cnt-bsy { background: rgba(255,102,102,0.2); color: #ff6666; }
+        .day-counter .cnt-diff { background: rgba(255,0,51,0.15); color: #ff4466; }
+
         @media (max-width: 700px) {
             .main-menu { grid-template-columns: 1fr; }
             .side-by-side { grid-template-columns: 1fr; }
@@ -800,6 +807,7 @@
                 discDays.forEach(day => {
                     const aList = appByDay[day]  || [];
                     const bList = bookByDay[day] || [];
+                    const dayDiff = aList.length - bList.length;
 
                     // Find which services are extra/missing per side
                     const aCopy = [...aList], bCopy = [...bList];
@@ -828,8 +836,19 @@
                             return `<div style="font-size:12px;padding:3px 8px;border-radius:6px;margin-bottom:3px;background:${isExtra?'rgba(255,0,51,0.1)':'rgba(255,255,255,0.04)'};color:${isExtra?'#ff4466':'#ccc'};">${s}</div>`;
                           }).join('');
 
+                    const diffPill = dayDiff === 0
+                        ? ''
+                        : `<span class="cnt-diff">${dayDiff > 0 ? '+' : ''}${dayDiff}</span>`;
+
                     dayRows += `<tr>
-                        <td style="color:#888;font-size:12px;vertical-align:top;padding-top:8px;white-space:nowrap;">${day}</td>
+                        <td style="vertical-align:top;padding-top:8px;white-space:nowrap;">
+                            <div style="color:#888;font-size:12px;font-weight:700;">${day}</div>
+                            <div class="day-counter">
+                                <span class="cnt-app">APP ${aList.length}</span>
+                                <span class="cnt-bsy">BSY ${bList.length}</span>
+                                ${diffPill}
+                            </div>
+                        </td>
                         <td style="vertical-align:top;padding:6px 8px;">${appCell}</td>
                         <td style="vertical-align:top;padding:6px 8px;">${bookCell}</td>
                     </tr>`;
@@ -847,7 +866,7 @@
                 ${discDays.length > 0 ? `<p style="font-size:12px;color:#888;margin:12px 0 4px;">Tylko dni z rozbieżnościami — <span style="color:#00ff88;">zielony</span> = tylko w APP, <span style="color:#ff4466;">czerwony</span> = tylko w Booksy</p>` : ''}
                 <table class="svc-compare-table">
                     <thead><tr>
-                        <th style="width:80px;">Data</th>
+                        <th style="width:110px;">Data</th>
                         <th style="color:#0099cc;">📱 APP</th>
                         <th style="color:#ff6666;">📅 Booksy</th>
                     </tr></thead>
