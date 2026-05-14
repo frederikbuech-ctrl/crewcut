@@ -702,6 +702,7 @@
 
         let pendingVisits = [];
         let isOnline = navigator.onLine;
+        let isSyncing = false; // Mutex to prevent concurrent syncs
         let pomadaPrice = null;
         let tipAmount = null;
         let priceEditBtn = null;
@@ -723,6 +724,7 @@
             const stored = localStorage.getItem('pendingVisits');
             if (stored) {
                 pendingVisits = JSON.parse(stored);
+                dedupePendingVisits();
                 if (isOnline && pendingVisits.length > 0) {
                     syncPendingVisits();
                 }
@@ -734,49 +736,62 @@
             localStorage.setItem('pendingVisits', JSON.stringify(pendingVisits));
         }
 
-        // Sync pending visits when online
+        // Sync pending visits when online — mutex-guarded to prevent duplicates
         async function syncPendingVisits() {
+            if (isSyncing) return; // Already syncing — don't start a second one
             if (!isOnline || pendingVisits.length === 0) return;
 
+            isSyncing = true;
             const syncStatus = document.getElementById('syncStatus');
             syncStatus.textContent = `Synchronizacja ${pendingVisits.length} wizyt...`;
 
-            let syncedCount = 0;
-            const toSync = [...pendingVisits];
-
-            for (const visit of toSync) {
-                try {
-                    await fetch(GOOGLE_SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(visit)
-                    });
-                    
-                    pendingVisits.shift();
-                    syncedCount++;
-                    savePendingVisits();
-                } catch (error) {
-                    console.error('Sync failed:', error);
-                    break;
+            try {
+                // Process one at a time, shifting off the queue only after success
+                while (pendingVisits.length > 0 && isOnline) {
+                    const visit = pendingVisits[0];
+                    try {
+                        await fetch(GOOGLE_SCRIPT_URL, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(visit)
+                        });
+                        pendingVisits.shift();
+                        savePendingVisits();
+                    } catch (error) {
+                        console.error('Sync failed:', error);
+                        break;
+                    }
                 }
-            }
 
-            if (pendingVisits.length === 0) {
-                syncStatus.textContent = '✓ Wszystkie wizyty zsynchronizowane';
-                syncStatus.className = 'sync-status synced';
-                setTimeout(() => {
-                    syncStatus.textContent = '';
-                    syncStatus.className = 'sync-status';
-                }, 3000);
-            } else {
-                syncStatus.textContent = `⚠️ ${pendingVisits.length} wizyt oczekuje na synchronizację`;
-                // Auto-clear the warning after 5 seconds so it doesn't block UI
-                setTimeout(() => {
-                    syncStatus.textContent = '';
-                    syncStatus.className = 'sync-status';
-                }, 5000);
+                if (pendingVisits.length === 0) {
+                    syncStatus.textContent = '✓ Wszystkie wizyty zsynchronizowane';
+                    syncStatus.className = 'sync-status synced';
+                    setTimeout(() => {
+                        syncStatus.textContent = '';
+                        syncStatus.className = 'sync-status';
+                    }, 3000);
+                } else {
+                    syncStatus.textContent = `⚠️ ${pendingVisits.length} wizyt oczekuje na synchronizację`;
+                    setTimeout(() => {
+                        syncStatus.textContent = '';
+                        syncStatus.className = 'sync-status';
+                    }, 5000);
+                }
+            } finally {
+                isSyncing = false;
             }
+        }
+
+        // Dedupe pendingVisits by timestamp to remove any duplicates that snuck in
+        function dedupePendingVisits() {
+            const seen = new Set();
+            pendingVisits = pendingVisits.filter(v => {
+                if (!v.timestamp || seen.has(v.timestamp)) return false;
+                seen.add(v.timestamp);
+                return true;
+            });
+            savePendingVisits();
         }
 
         // Service definitions per worker
@@ -1080,6 +1095,13 @@
         async function handleSubmit() {
             const statusMsg = document.getElementById('statusMsg');
             const submitBtn = document.getElementById('submitBtn');
+
+            // Guard against empty/incomplete submissions (defense in depth — button should also be disabled)
+            const coreServicesCheck = selectedData.services.filter(s => s.name !== 'Pomada' && s.name !== 'Napiwek');
+            if (!selectedData.worker || coreServicesCheck.length === 0 || !selectedData.payment) {
+                showToast('✗ Wybierz pracownika, usługę i płatność', 'error');
+                return;
+            }
 
             submitBtn.disabled = true;
             submitBtn.textContent = 'ZAPISYWANIE...';
