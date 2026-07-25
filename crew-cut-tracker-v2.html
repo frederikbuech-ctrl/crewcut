@@ -588,7 +588,6 @@
             <div class="button-grid">
                 <button class="btn" data-worker="Lukasz">LUKASZ</button>
                 <button class="btn" data-worker="Gabriel">GABRIEL</button>
-                <button class="btn" data-worker="Valentina">VALENTINA</button>
                 <button class="btn" data-worker="Nadia">NADIA</button>
             </div>
         </div>
@@ -807,17 +806,10 @@
             { name: 'Strzyżenie brody + golenie głowy',              price: 110 },
             { name: 'Depilacja woskiem',                             price: 20  },
         ];
-        const SERVICES_NADIA = [
-            { name: 'Strzyżenie krótkich włosów',                    price: 90  },
-            { name: 'Strzyżenie krótkich włosów i brody',            price: 130 },
-            { name: 'Combo+ pigmentacja',                            price: 160 },
-            { name: 'Strzyżenie brody',                              price: 70  },
-            { name: 'Strzyżenie na jedną długość+ broda',            price: 100 },
-        ];
 
         function renderServiceButtons(worker) {
             const grid = document.getElementById('serviceGrid');
-            const list = worker === 'Nadia' ? SERVICES_NADIA : SERVICES_DEFAULT;
+            const list = SERVICES_DEFAULT;
             const priceFormatted = p => p.toFixed(2).replace('.', ',') + ' zł';
             grid.innerHTML = list.map(s =>
                 `<button class="btn service" data-service="${s.name}" data-price="${s.price}">
