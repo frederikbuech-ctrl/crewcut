@@ -386,16 +386,7 @@
 <script>
     const SPREADSHEET_ID = '1DE04_H5VlDa3qzmzsPD0bzXH_WTyqWHmji-kjDvfC00';
     const API_KEY        = 'AIzaSyAgHBT9BHuN2GECz-Hf8ddPWFhglv7Jxu4';
-    const WORKERS        = ['Lukasz', 'Gabriel', 'Valentina', 'Nadia'];
-
-    // Nadia has a different service menu than Lukasz/Gabriel
-    const NADIA_SERVICES = [
-        { name: 'Strzyżenie krótkich włosów',             price: 90  },
-        { name: 'Strzyżenie krótkich włosów i brody',     price: 130 },
-        { name: 'Combo+ pigmentacja',                     price: 160 },
-        { name: 'Strzyżenie brody',                       price: 70  },
-        { name: 'Strzyżenie na jedną długość+ broda',     price: 100 },
-    ];
+    const WORKERS        = ['Lukasz', 'Gabriel', 'Nadia'];
 
     const SERVICE_MAPPING = {
         'Strzyżenie krótkich włosów': 'Strzyżenie krótkich włosów',
@@ -665,7 +656,7 @@
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
             // Pre-scan for debug info
-            const workersFound = ['Gabriel','Łukasz','Lukasz','Valentina','Nadia'].filter(w =>
+            const workersFound = ['Gabriel','Łukasz','Lukasz','Nadia'].filter(w =>
                 jsonData.some(row => row.join(' ').includes(w)));
             const hasDate    = jsonData.some(row => row.some(c => String(c).match(/\d{1,2}\.\d{2}\.\d{4}/)));
             const hasZakoncz = jsonData.some(row => row.some(c => String(c).trim() === 'Zakończone'));
@@ -679,7 +670,7 @@
                     <div class="title">❌ Nie rozpoznano danych Booksy</div>
                     <ul>
                         <li>To nie jest eksport z Booksy</li>
-                        <li>Brak pracowników (Gabriel, Łukasz, Valentina, Nadia) w pliku</li>
+                        <li>Brak pracowników (Gabriel, Łukasz, Nadia) w pliku</li>
                         <li>Brak wizyt ze statusem "Zakończone"</li>
                         <li>Inny format daty lub kolumn</li>
                     </ul>
@@ -951,7 +942,7 @@
     function parseBooksyData(data) {
         const parsed = {};
         let currentWorker = null;
-        const TRACKED_WORKERS = ['Gabriel', 'Nadia', 'Lukasz', 'Łukasz', 'Valentina'];
+        const TRACKED_WORKERS = ['Gabriel', 'Nadia', 'Lukasz', 'Łukasz'];
         const UNTRACKED_WORKERS = ['Dawid', 'Szymon'];
 
         for (let i = 0; i < data.length; i++) {
@@ -968,7 +959,6 @@
                 if (rowStr === 'Gabriel')                         { currentWorker = 'Gabriel'; continue; }
                 if (rowStr === 'Nadia')                           { currentWorker = 'Nadia';   continue; }
                 if (rowStr === 'Łukasz' || rowStr === 'Lukasz')  { currentWorker = 'Lukasz';  continue; }
-                if (rowStr === 'Valentina')                       { currentWorker = 'Valentina'; continue; }
                 if (rowStr === 'Dawid'  || rowStr === 'Szymon')  { currentWorker = null;       continue; }
             }
 
