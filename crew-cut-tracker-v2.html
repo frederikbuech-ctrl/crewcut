@@ -946,16 +946,25 @@
             const submitBtn = document.getElementById('submitBtn');
 
             const coreServices = selectedData.services.filter(s => s.name !== 'Pomada' && s.name !== 'Napiwek');
-            const hasCore = coreServices.length > 0;
+            const pomadaItem   = selectedData.services.find(s => s.name === 'Pomada');
+            const napiwekItem  = selectedData.services.find(s => s.name === 'Napiwek');
+            const hasCore   = coreServices.length > 0;
+            const hasPomada = !!pomadaItem;
+            // Pomada alone is a valid sale. Napiwek alone is not.
+            const canSave   = hasCore || hasPomada;
 
-            if (selectedData.worker && hasCore && selectedData.payment) {
-                const coreTotal   = coreServices.reduce((sum, s) => sum + s.price, 0);
-                const pomadaItem  = selectedData.services.find(s => s.name === 'Pomada');
-                const napiwekItem = selectedData.services.find(s => s.name === 'Napiwek');
+            if (selectedData.worker && canSave && selectedData.payment) {
+                const coreTotal = coreServices.reduce((sum, s) => sum + s.price, 0);
 
-                const serviceTags = coreServices.map(s =>
-                    `<span class="service-tag">${s.name}${s.price > 0 ? ' ' + s.price + ' zł' : ''}</span>`
-                ).join(' ');
+                const serviceTags = hasCore
+                    ? coreServices.map(s =>
+                        `<span class="service-tag">${s.name}${s.price > 0 ? ' ' + s.price + ' zł' : ''}</span>`
+                      ).join(' ')
+                    : '<span class="service-tag">Tylko pomada</span>';
+
+                const coreTotalLine = hasCore
+                    ? `<div style="margin-top: 10px;"><strong>Suma usług:</strong> <span class="total-price">${coreTotal} zł</span></div>`
+                    : '';
 
                 const pomadaLine = pomadaItem
                     ? `<div style="margin-top: 6px; font-size: 13px; color: #ffaa00;">Pomada: ${pomadaItem.price} zł</div>`
@@ -967,14 +976,14 @@
                 display.innerHTML = `
                     <div><strong>Pracownik:</strong> ${selectedData.worker}</div>
                     <div style="margin-top: 10px;"><strong>Usługi:</strong><br>${serviceTags}</div>
-                    <div style="margin-top: 10px;"><strong>Suma usług:</strong> <span class="total-price">${coreTotal} zł</span></div>
+                    ${coreTotalLine}
                     ${pomadaLine}${napiwekLine}
                     <div style="margin-top: 10px;"><strong>Płatność:</strong> ${selectedData.payment}</div>
                 `;
                 if (!lastTimestamp) submitBtn.disabled = false;
             } else {
-                display.innerHTML = selectedData.worker && !hasCore && selectedData.services.length > 0
-                    ? 'Wybierz co najmniej jedną usługę (pomada i napiwek nie wystarczą)'
+                display.innerHTML = selectedData.worker && !canSave && napiwekItem
+                    ? 'Sam napiwek to za mało — wybierz usługę albo pomadę'
                     : 'Wybierz pracownika, usługi i płatność';
                 submitBtn.disabled = true;
             }
@@ -1090,9 +1099,11 @@
             const submitBtn = document.getElementById('submitBtn');
 
             // Guard against empty/incomplete submissions (defense in depth — button should also be disabled)
+            // A sale needs a worker, a payment, and either a core service or a pomada.
             const coreServicesCheck = selectedData.services.filter(s => s.name !== 'Pomada' && s.name !== 'Napiwek');
-            if (!selectedData.worker || coreServicesCheck.length === 0 || !selectedData.payment) {
-                showToast('✗ Wybierz pracownika, usługę i płatność', 'error');
+            const hasPomadaCheck    = selectedData.services.some(s => s.name === 'Pomada');
+            if (!selectedData.worker || (coreServicesCheck.length === 0 && !hasPomadaCheck) || !selectedData.payment) {
+                showToast('✗ Wybierz pracownika, usługę lub pomadę i płatność', 'error');
                 return;
             }
 
@@ -1105,7 +1116,10 @@
                 const napiwekService = selectedData.services.find(s => s.name === 'Napiwek');
                 const coreServices = selectedData.services.filter(s => s.name !== 'Pomada' && s.name !== 'Napiwek');
                 const totalPrice = coreServices.reduce((sum, s) => sum + s.price, 0);
-                const servicesString = coreServices.map(s => s.name).join(' + ');
+                // Pomada-only sale: label it so the sheet never gets a blank Usługa cell
+                const servicesString = coreServices.length > 0
+                    ? coreServices.map(s => s.name).join(' + ')
+                    : 'Pomada';
 
                 const dataToSend = {
                     timestamp: now.toISOString(),
