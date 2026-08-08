@@ -473,8 +473,10 @@
                     const napiwek = parseFloat(row[8]?.formattedValue || 0);
                     const dateStr = row[1]?.formattedValue || '';
                     const timeStr = row[2]?.formattedValue || '';
+                    // Pomada-only sale: a product sale, not a Booksy appointment
+                    const pomadaOnly = service.trim() === 'Pomada';
                     if (!appData[sName][worker]) appData[sName][worker] = [];
-                    appData[sName][worker].push({ service, price, payment, pomada, napiwek, date: dateStr, time: timeStr });
+                    appData[sName][worker].push({ service, price, payment, pomada, napiwek, date: dateStr, time: timeStr, pomadaOnly });
                 }
             }
 
@@ -517,14 +519,22 @@
     }
 
     function workerStats(month, worker) {
-        const visits   = appData[month]?.[worker] || [];
-        const terminal = visits.filter(v => v.payment === 'Terminal').reduce((s,v) => s+v.price, 0);
-        const cash     = visits.filter(v => v.payment === 'Gotówka').reduce((s,v) => s+v.price, 0);
-        const pomada   = visits.reduce((s,v) => s+(v.pomada||0), 0);
-        const napiwek  = visits.reduce((s,v) => s+(v.napiwek||0), 0);
+        const all      = appData[month]?.[worker] || [];
+        // Pomada-only sales are product sales, not appointments — excluded from visit counts
+        const visits   = all.filter(v => !v.pomadaOnly);
+        const pomadaSales = all.filter(v => v.pomadaOnly).length;
+        const terminal = all.filter(v => v.payment === 'Terminal').reduce((s,v) => s+v.price, 0);
+        const cash     = all.filter(v => v.payment === 'Gotówka').reduce((s,v) => s+v.price, 0);
+        const pomada   = all.reduce((s,v) => s+(v.pomada||0), 0);
+        const napiwek  = all.reduce((s,v) => s+(v.napiwek||0), 0);
         const svcCount = {};
         visits.forEach(v => { if (v.service) svcCount[v.service] = (svcCount[v.service]||0)+1; });
-        return { visits, terminal, cash, total: terminal+cash, pomada, napiwek, svcCount };
+        return { visits, all, pomadaSales, terminal, cash, total: terminal+cash, pomada, napiwek, svcCount };
+    }
+
+    // Visits for APP-vs-Booksy comparison — pomada-only sales never appear in Booksy
+    function appVisits(month, worker) {
+        return (appData[month]?.[worker] || []).filter(v => !v.pomadaOnly);
     }
 
     function svcBreakdownHTML(svcCount) {
@@ -580,12 +590,12 @@
 
     function renderStatystyki() {
         const month = document.getElementById('statsMonthSelect').value;
-        let allT=0, allC=0, allP=0, allN=0, allV=0;
+        let allT=0, allC=0, allP=0, allN=0, allV=0, allPS=0;
         const workerData = {};
 
         WORKERS.forEach(worker => {
             const s = workerStats(month, worker);
-            allT+=s.terminal; allC+=s.cash; allP+=s.pomada; allN+=s.napiwek; allV+=s.visits.length;
+            allT+=s.terminal; allC+=s.cash; allP+=s.pomada; allN+=s.napiwek; allV+=s.visits.length; allPS+=s.pomadaSales;
             workerData[worker] = s;
         });
 
@@ -597,7 +607,7 @@
                 <div class="stat-card"><div class="stat-label">Terminal łącznie</div><div class="stat-value" style="color:#0099cc;">${allT} zł</div></div>
                 <div class="stat-card"><div class="stat-label">Gotówka łącznie</div><div class="stat-value" style="color:#00ff88;">${allC} zł</div></div>
                 <div class="stat-card"><div class="stat-label">Przychód usługi</div><div class="stat-value" style="color:#fff;">${allT+allC} zł</div></div>
-                <div class="stat-card"><div class="stat-label">Pomada łącznie</div><div class="stat-value" style="color:#ffaa00;">${allP} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Pomada łącznie</div><div class="stat-value" style="color:#ffaa00;">${allP} zł</div>${allPS > 0 ? `<div class="stat-sub">w tym ${allPS} sprzedaży samej pomady</div>` : ''}</div>
                 <div class="stat-card"><div class="stat-label">Napiwki łącznie</div><div class="stat-value" style="color:#00ff88;">${allN} zł</div></div>
             </div>
         </div>`;
@@ -616,7 +626,7 @@
                 <div class="stat-card"><div class="stat-label">Terminal</div><div class="stat-value" style="color:#0099cc;">${s.terminal} zł</div></div>
                 <div class="stat-card"><div class="stat-label">Gotówka</div><div class="stat-value" style="color:#00ff88;">${s.cash} zł</div></div>
                 <div class="stat-card"><div class="stat-label">Usługi łącznie</div><div class="stat-value" style="color:#fff;">${s.total} zł</div></div>
-                <div class="stat-card"><div class="stat-label">Pomada</div><div class="stat-value" style="color:#ffaa00;">${s.pomada} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Pomada</div><div class="stat-value" style="color:#ffaa00;">${s.pomada} zł</div>${s.pomadaSales > 0 ? `<div class="stat-sub">w tym ${s.pomadaSales} sprzedaży samej pomady</div>` : ''}</div>
                 <div class="stat-card"><div class="stat-label">Napiwki</div><div class="stat-value" style="color:#00ff88;">${s.napiwek} zł</div></div>
             </div>
             ${svcBreakdownHTML(s.svcCount)}
@@ -749,7 +759,7 @@
         // Discrepancies summary
         let discHtml = '', anyDisc = false;
         WORKERS.forEach(worker => {
-            const ac = appData[month]?.[worker]?.length || 0;
+            const ac = appVisits(month, worker).length;
             const bc = booksyData[month]?.[worker]?.length || 0;
             const d  = ac - bc;
             if (d !== 0) anyDisc = true;
@@ -765,7 +775,7 @@
 
         // Per-worker day-by-day breakdown
         WORKERS.forEach(worker => {
-            const appV    = appData[month]?.[worker]   || [];
+            const appV    = appVisits(month, worker);
             const bookV   = booksyData[month]?.[worker] || [];
             const appRev  = appV.reduce((s,v)  => s+v.price, 0);
             const bookRev = bookV.reduce((s,v) => s+v.price, 0);
@@ -893,6 +903,7 @@
         const tT = all.reduce((s,w)=>s+w.terminal,0);
         const tC = all.reduce((s,w)=>s+w.cash,0);
         const tP = all.reduce((s,w)=>s+w.pomada,0);
+        const tPS = all.reduce((s,w)=>s+w.pomadaSales,0);
         const tN = all.reduce((s,w)=>s+w.napiwek,0);
 
         const summary = `<div class="section-card" style="border-color:#0099cc;background:linear-gradient(135deg,#0d2233,#1a1a1a);">
@@ -902,7 +913,7 @@
                 <div class="stat-card"><div class="stat-label">Terminal łącznie</div><div class="stat-value" style="color:#0099cc;">${tT} zł</div></div>
                 <div class="stat-card"><div class="stat-label">Gotówka łącznie</div><div class="stat-value" style="color:#00ff88;">${tC} zł</div></div>
                 <div class="stat-card"><div class="stat-label">Usługi łącznie</div><div class="stat-value" style="color:#fff;">${tT+tC} zł</div></div>
-                <div class="stat-card"><div class="stat-label">Pomada łącznie</div><div class="stat-value" style="color:#ffaa00;">${tP} zł</div></div>
+                <div class="stat-card"><div class="stat-label">Pomada łącznie</div><div class="stat-value" style="color:#ffaa00;">${tP} zł</div>${tPS > 0 ? `<div class="stat-sub">w tym ${tPS} sprzedaży samej pomady</div>` : ''}</div>
                 <div class="stat-card"><div class="stat-label">Napiwki łącznie</div><div class="stat-value" style="color:#00ff88;">${tN} zł</div></div>
             </div>
         </div>`;
@@ -914,7 +925,7 @@
 
         // Active worker detail
         const s = workerStats(month, ewActiveWorker);
-        const detail = s.visits.length === 0
+        const detail = s.all.length === 0
             ? `<div class="section-card worker-detail"><p style="color:#888;text-align:center;padding:20px;">Brak wizyt dla ${ewActiveWorker} w ${month}</p></div>`
             : `<div class="section-card worker-detail">
                 <h2 style="color:#fff;">${ewActiveWorker}</h2>
@@ -923,11 +934,11 @@
                     <div class="stat-card"><div class="stat-label">Terminal</div><div class="stat-value" style="color:#0099cc;">${s.terminal} zł</div></div>
                     <div class="stat-card"><div class="stat-label">Gotówka</div><div class="stat-value" style="color:#00ff88;">${s.cash} zł</div></div>
                     <div class="stat-card"><div class="stat-label">Usługi łącznie</div><div class="stat-value" style="color:#fff;">${s.total} zł</div></div>
-                    <div class="stat-card"><div class="stat-label">Pomada</div><div class="stat-value" style="color:#ffaa00;">${s.pomada} zł</div></div>
+                    <div class="stat-card"><div class="stat-label">Pomada</div><div class="stat-value" style="color:#ffaa00;">${s.pomada} zł</div>${s.pomadaSales > 0 ? `<div class="stat-sub">w tym ${s.pomadaSales} sprzedaży samej pomady</div>` : ''}</div>
                     <div class="stat-card"><div class="stat-label">Napiwki</div><div class="stat-value" style="color:#00ff88;">${s.napiwek} zł</div></div>
                 </div>
                 ${svcBreakdownHTML(s.svcCount)}
-                ${appVisitsTableHTML(s.visits)}
+                ${appVisitsTableHTML(s.all)}
             </div>`;
 
         document.getElementById('ewOutput').innerHTML = summary + tabs + detail;
